@@ -1,0 +1,155 @@
+<!doctype html><html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironman Trainer</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<style>
+:root{--bg:#fafaf9;--cd:#fff;--bd:#e7e5e4;--tx:#1c1917;--mu:#78716c;--ac:#0891b2;--ok:#16a34a;--no:#dc2626;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c0a09;--cd:#1c1917;--bd:#292524;--tx:#f5f5f4;--mu:#a8a29e;--ac:#22d3ee}}
+:root[data-theme="dark"]{--bg:#0c0a09;--cd:#1c1917;--bd:#292524;--tx:#f5f5f4;--mu:#a8a29e;--ac:#22d3ee}
+body{background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif;padding-bottom:84px}
+.cd{background:var(--cd);border:1px solid var(--bd);border-radius:18px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.hero{background:linear-gradient(135deg,#0e7490,#1d4ed8 60%,#7c3aed);color:#fff;border-radius:22px;padding:20px;box-shadow:0 8px 24px rgba(29,78,216,.3)}
+.chip{display:inline-block;background:var(--bd);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600}
+.sheet{background:var(--cd);border-radius:26px 26px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow:auto}
+.mu{color:var(--mu)}.bt{background:var(--ac);color:#0c0a09;border-radius:10px;padding:10px 14px;font-weight:600}
+.bt:disabled{opacity:.5}
+input{background:transparent;border:1px solid var(--bd);border-radius:8px;padding:6px 8px;color:var(--tx);width:100%}
+.cell{height:18px;border-radius:3px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--cd);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px))}
+nav button{font-size:12px;padding:4px 14px}
+</style></head><body><div id="root"></div>
+<script>
+const h=htm.bind(React.createElement),{useState,useEffect,useRef}=React;
+const DAYS=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"],HRS=Array.from({length:17},(_,i)=>i+6);
+const SK={swim:["Pernas","Braçada","Respiração","Posição corporal"],bike:["Cadência","Subida","Posição aero","Gestão de esforço"],run:["Cadência","Economia","Pernas pós-bike","Força / subida"]};
+const NM={swim:"Natação",bike:"Ciclismo",run:"Corrida",strength:"Força",rest:"Descanso"},EM={swim:"🏊",bike:"🚴",run:"🏃",strength:"🏋️",rest:"😴"};
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const pd=s=>{const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c)};
+const ad=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r};
+const sow=d=>{const r=new Date(d);r.setDate(r.getDate()-(r.getDay()+6)%7);r.setHours(0,0,0,0);return r};
+const fm=m=>m<=0?"—":`${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,"0")}`;
+const pp=s=>{const[a,b]=String(s).split(":").map(Number);return(a||0)+(b||0)/60};
+const fp=v=>{const t=Math.round(v*60);return`${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`};
+const DEF={raceName:"IRONMAN Portugal-Cascais",raceDate:"",av:{},goal:{swim:"2:00",bike:35,run:"4:00"},body:{peso:"",altura:"",idade:"",fcmax:"",gordura:"",ftp:""},sk:{},gpx:{}};
+const ld=k=>{try{return JSON.parse(localStorage.getItem(k)||"null")}catch{return null}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+function mkPlan(rd){
+ const t0=sow(new Date()),tw=Math.max(12,Math.ceil((pd(rd)-t0)/6048e5)),tp=Math.min(3,Math.max(2,Math.round(tw*.05))),pk=Math.max(2,Math.round(tw*.15)),bd=Math.max(3,Math.round(tw*.3)),bs=Math.max(4,tw-tp-pk-bd);
+ const ph=[...Array(bs).fill("Base"),...Array(bd).fill("Build"),...Array(pk).fill("Peak"),...Array(tp).fill("Taper")],N=ph.length,L=(a,b,t)=>a+(b-a)*t;
+ return ph.map((p,i)=>{
+  const g=Math.min(1,i/Math.max(1,N-tp-1)),cut=(i+1)%4==0&&p!="Taper";
+  let lb=L(60,330,g),lr=L(30,150,g),ls=L(20,75,g);
+  if(p=="Taper"){const f=L(.6,.2,(i-(N-tp))/Math.max(1,tp-1))/.6;lb*=f;lr*=f;ls=ls*f+.2*ls}
+  if(cut){lb*=.65;lr*=.65;ls*=.75}
+  const S=(d,t,m,x)=>({d,t,m:Math.round(m),x}),ts=ls*.6;
+  const D=p=="Base"?[[S("rest","Descanso / mobilidade",0,"—")],[S("swim","Natação — técnica",ts,"Z1-Z2")],[S("bike","Bike — endurance",lb*.4,"Z2")],[S("swim","Natação — contínua",ls*.7,"Z2")],[S("strength","Força + core",35,"Moderado")],[S("bike","Bike — longa",lb,"Z2")],[S("run","Corrida — longa",lr,"Z2")]]
+  :[[S("swim","Natação — Z2",ls*.7,"Z2")],[S("bike","Bike — longa",lb,"Z2")],[S("swim","Natação — velocidade",ts,"Z3-Z4"),S("run","Corrida — Z2",lr*.5,"Z2")],[S("bike","Bike — Z2",lb*.4,"Z2")],[S("swim","Natação — Z2",ts*.9,"Z2"),S("run","Corrida — Z2",lr*.4,"Z2")],[S("bike","Bike — ritmo de prova",lb*.44,"Ritmo de prova"),S("run","Brick — transição",20,"Transição")],[S("run","Corrida — longa",lr,"Z2")]];
+  return{n:i+1,p,cut,st:ad(t0,i*7),D}})
+}
+function slots(day,ss,av){const used={};return ss.map(s=>{if(s.d=="rest")return"";const n=Math.max(1,Math.ceil(s.m/60));for(let a=6;a+n<=23;a++){let ok=true;for(let k=a;k<a+n;k++)if(av[`${day}-${k}`]===false||used[k])ok=false;if(ok){for(let k=a;k<a+n;k++)used[k]=1;return`${a}:00`}}return"sem horário"})}
+function gpx(tx){
+ const x=new DOMParser().parseFromString(tx,"application/xml"),p=[...x.querySelectorAll("trkpt,rtept")].map(n=>{const e=n.querySelector("ele");return{a:+n.getAttribute("lat"),o:+n.getAttribute("lon"),e:e?+e.textContent:null}});
+ const he=p.length>1&&p.every(q=>q.e!=null),e=p.map((q,i)=>{if(!he)return 0;const w=p.slice(Math.max(0,i-5),i+6);return w.reduce((s,z)=>s+z.e,0)/w.length});
+ let d=0,g=0;const f=Math.PI/180;
+ for(let i=1;i<p.length;i++){const a=p[i-1],b=p[i],q=Math.sin((b.a-a.a)*f/2)**2+Math.cos(a.a*f)*Math.cos(b.a*f)*Math.sin((b.o-a.o)*f/2)**2;d+=12742*Math.asin(Math.sqrt(q));if(he&&e[i]>e[i-1])g+=e[i]-e[i-1]}
+ return{km:+d.toFixed(2),gain:he?Math.round(g):null}
+}
+const typ=t=>/run/.test(t)?"Corrida":/cycl|bik/.test(t)?"Ciclismo":/swim/.test(t)?"Natação":/strength/.test(t)?"Força":t;
+const ln=a=>{const km=a.distance_meters/1000,m=a.duration_seconds/60;if(km<.05)return`${Math.round(m)} min`;return/run/.test(a.type)?`${km.toFixed(1)} km · ${fp(m/km)}/km`:/cycl|bik/.test(a.type)?`${km.toFixed(1)} km · ${(km/(m/60)).toFixed(1)} km/h`:/swim/.test(a.type)?`${Math.round(km*1000)} m · ${fp(m/(km*10))}/100 m`:`${km.toFixed(1)} km · ${Math.round(m)} min`};
+const LV={HIGH:"Alta",MODERATE:"Moderada",LOW:"Baixa",PRIME:"Ótima"};
+const EMSG={needs_reauth:"A ligação ao Garmin expirou. Volta a ligá-lo nos conectores do claude.ai.",server_not_connected:"O Garmin não está ligado à tua conta. Liga-o nos conectores do claude.ai.",approval_required:"Falta a tua permissão para esta página usar o Garmin.",not_granted:"Falta a tua permissão para esta página usar o Garmin.",rate_limited:"Muitos pedidos seguidos. Tenta daqui a pouco.",server_unavailable:"O Garmin não respondeu. Tenta outra vez."};
+const em=e=>EMSG[e&&e.code]||`O Garmin devolveu um erro${e&&e.message?": "+String(e.message).slice(0,80):""}.`;
+const Ring=({v})=>{const r=40,c=2*Math.PI*r,p=Math.max(0,Math.min(100,v||0))/100;return h`<svg viewBox="0 0 100 100" width="110" height="110"><circle cx="50" cy="50" r=${r} fill="none" stroke="var(--bd)" strokeWidth="9"/><circle cx="50" cy="50" r=${r} fill="none" stroke="var(--ac)" strokeWidth="9" strokeLinecap="round" strokeDasharray=${c} strokeDashoffset=${c*(1-p)} transform="rotate(-90 50 50)"/><text x="50" y="56" textAnchor="middle" fontSize="24" fontWeight="700" fill="var(--tx)">${v??"–"}</text></svg>`};
+const CL={swim:"#22d3ee",bike:"#f59e0b",run:"#fb7185",strength:"#a78bfa",rest:"#78716c"};
+const Sess=({s,t,k})=>{const ok=window.LG&&window.LG[k]&&window.LG[k].done;return h`<button className="cd w-full text-left flex items-center gap-3 mb-2" style=${{borderLeft:`5px solid ${CL[s.d]}`,opacity:ok?.6:1}} onClick=${()=>window.OP&&window.OP({s,t,k})}><span className="text-2xl">${EM[s.d]}</span><div className="flex-1"><div className="text-sm font-semibold">${s.t}</div><div className="mu text-xs">${ok&&window.LG[k].act?`Feito: ${window.LG[k].act.txt}`:`${s.x}${t?` · ${t}`:""}`}</div></div><div className="text-right"><div className="text-sm font-mono">${s.d=="rest"?"":fm(s.m)}</div><div className="text-xs">${ok?"✅":"›"}</div></div></button>`};
+const L6=[.5,.6,.7,.8,.9,1];
+const zt=(fc,x)=>{const m=String(x).match(/Z(\d)(?:-Z(\d))?/);if(!m)return x;const a=+m[1],b=+(m[2]||m[1]),lo=L6[a-1],hi=L6[b],z=`Z${a}${b>a?`-Z${b}`:""}`;return fc?`${Math.round(fc*lo)}–${Math.round(fc*hi)} bpm (${z})`:`${Math.round(lo*100)}–${Math.round(hi*100)}% da FC máx. (${z})`};
+function wo(s,o){
+ const m=s.m,wu=Math.max(5,Math.round(m*.15)),cd=Math.max(5,Math.round(m*.1)),mn=Math.max(5,m-wu-cd),z=zt(o.fc,s.x),t=s.t,g=o.goal;
+ if(s.d=="rest")return[["Mobilidade",["15–20 min: ancas, tornozelos, ombros e coluna torácica","Caminhada leve opcional; sem treino"]]];
+ if(s.d=="strength")return[["Aquecimento",["5 min de remo ou bike leve","2×10 pontes de glúteo e 2×10 band walks"]],["Parte principal",["Agachamento goblet 3×8–10","Peso morto romeno 3×8","Avanços 3×10 por perna","Remada com elástico 3×10","Prancha 3×45 s e prancha lateral 2×30 s por lado"]],["Mobilidade final",["Ancas, isquiotibiais, peitoral e dorsais, 8 min"]]];
+ if(s.d=="swim"){const sp=/velocidade/.test(t),tc=/técnica/.test(t);return[["Aquecimento",["300 m fácil misto","4×50 m com técnica (pernas e braçada), 15 s de descanso"]],["Parte principal",sp?[`${Math.max(6,Math.round(mn/3))}×100 m em Z4, mais rápido que o ritmo de prova (${g.swim}/100 m), 20 s de descanso`]:tc?["6×100 m em Z2 com braçada longa, 20 s de descanso","4×50 m com pull buoy, foco na tração","4×50 m com respiração bilateral"]:[`${Math.round(mn*45/50)*50} m contínuos em Z2 (${z}), ritmo regular`,"Levanta a cabeça para orientação de 8 em 8 braçadas (mar aberto)"]],["Arrefecimento",["200 m muito fácil"]]]}
+ if(s.d=="bike"){const pr=/prova/.test(t),lg=/longa/.test(t);return[["Aquecimento",[`${wu} min fácil em Z1-Z2, cadência 90 rpm`]],["Parte principal",pr?[`${Math.max(2,Math.round(mn/25))}×20 min a ${g.bike} km/h (ritmo de prova), posição aero`,"5 min fáceis entre blocos"]:[`${mn} min em Z2 (${z}), constante`,"Cadência 85–95 rpm; a cada hora, 3×1 min a 100+ rpm",lg?"Inclui uma subida sustentada em esforço controlado (abaixo do limiar), sentado":"Ritmo constante, sem picos"]],["Arrefecimento",[`${cd} min fácil`]],...(m>=150?[["Nutrição",["60–90 g de hidratos/h e 500–750 mg de sódio/h; usa o que vais usar na prova"]]]:[])]}
+ const br=/Brick/.test(t),lg=/longa/.test(t);
+ return[...(br?[]:[["Aquecimento",[`${wu} min de marcha ou trote fácil em Z1-Z2`,"4×20 s de strides soltos"]]]),["Parte principal",br?["Logo depois da bike, sem parar",`20 min: começa em Z2 e nos últimos 10 min vai para o ritmo de prova (${g.run}/km)`,"Cadência alta (170+ passos/min), passos curtos"]:[`${mn} min em Z2 (${z})`,lg?"Primeiros 10 min mais fáceis; bebe e come a cada 5 km":"Ritmo conversável, cadência estável"]],...(br?[]:[["Arrefecimento",[`${cd} min a caminhar e mobilidade`]]])]
+}
+const Det=({q,fc,goal,lg,setLg,close})=>{const s=q.s,l=lg[q.k]||{},set=p=>setLg(o=>({...o,[q.k]:{...o[q.k],...p}})),B=wo(s,{fc,goal});return h`<div className="fixed inset-0 z-50 flex items-end" style=${{background:"rgba(0,0,0,.55)"}} onClick=${close}><div className="sheet w-full max-w-md mx-auto" onClick=${e=>e.stopPropagation()}><div className="flex justify-between items-start"><div><div className="text-3xl">${EM[s.d]}</div><div className="text-xl font-bold">${s.t}</div><div className="mu text-xs">${fm(s.m)}${q.t?` · ${q.t}`:""}</div></div><button className="text-3xl" onClick=${close}>×</button></div><div className="chip mt-3">${s.d=="rest"?"Recuperação":`Intensidade: ${zt(fc,s.x)}`}</div>${l.act&&h`<div className="text-sm mt-2" style=${{color:"var(--ok)"}}>Do Garmin: ${l.act.txt}${l.act.hr?` · ${l.act.hr} bpm`:""}</div>`}${!fc&&/Z\d/.test(s.x)&&h`<div className="mu text-xs mt-1">Define a FC máxima em Definições › Corpo para veres os bpm.</div>`}${B.map(([t,L])=>h`<div key=${t} className="mt-4"><div className="text-xs font-semibold uppercase mu mb-1">${t}</div><ul className="space-y-1 text-sm">${L.map((x,i)=>h`<li key=${i}>• ${x}</li>`)}</ul></div>`)}${s.d!="rest"&&h`<div className="mt-5 space-y-2"><button className="bt w-full" onClick=${()=>set({done:!l.done})}>${l.done?"✓ Feito (toca para desfazer)":"Marcar como feito"}</button><input placeholder="Link do Strava (opcional)" value=${l.strava||""} onChange=${e=>set({strava:e.target.value})}/><input placeholder="Notas (como correu)" value=${l.notes||""} onChange=${e=>set({notes:e.target.value})}/></div>`}</div></div>`};
+const Fld=({l,v,on,t="text"})=>h`<label className="mu text-xs flex flex-col gap-1">${l}<input type=${t} value=${v??""} onChange=${e=>on(e.target.value)}/></label>`;
+const Sec=({id,t,open,set,children})=>h`<div className="cd mb-3"><button className="w-full flex justify-between font-semibold" onClick=${()=>set(open==id?"":id)}><span>${t}</span><span className="mu">${open==id?"–":"+"}</span></button>${open==id&&h`<div className="mt-3 space-y-3">${children}</div>`}</div>`;
+const DT=a=>/run/.test(a.type)?"run":/cycl|bik/.test(a.type)?"bike":/swim/.test(a.type)?"swim":/strength/.test(a.type)?"strength":null;
+function mt(plan,acts,lg){const o={...lg};let c=0;acts.forEach(a=>{const dd=DT(a);if(!dd)return;const d=pd(a.start_time.slice(0,10)),w=plan.find(x=>x.st<=d&&ad(x.st,6)>=d);if(!w)return;const di=(d.getDay()+6)%7,K=j=>`${w.n}-${di}-${j}`,D=w.D[di];if(D.some((_,j)=>o[K(j)]&&o[K(j)].act&&o[K(j)].act.id==a.id))return;const j=D.findIndex((x,j)=>x.d==dd&&!(o[K(j)]&&o[K(j)].done));if(j<0)return;o[K(j)]={...o[K(j)],done:true,auto:true,act:{id:a.id,min:Math.round(a.duration_seconds/60),hr:a.avg_hr_bpm?Math.round(a.avg_hr_bpm):0,txt:ln(a)}};c++});return{o,c}}
+function App(){
+ const[s,setS]=useState(()=>({...DEF,...(ld("imt")||{})})),[gd,setG]=useState(()=>ld("imt-g")||{}),[tab,setTab]=useState("hoje"),[wi,setWi]=useState(null),[op,setOp]=useState(""),[busy,setBusy]=useState(false),[er,setEr]=useState({}),dr=useRef(null),[sel,setSel]=useState(null),[lg,setLg]=useState(()=>ld("imt-l")||{});
+ useEffect(()=>sv("imt",s),[s]);useEffect(()=>sv("imt-g",gd),[gd]);useEffect(()=>sv("imt-l",lg),[lg]);window.OP=setSel;window.LG=lg;
+ const up=(k,v)=>setS(o=>({...o,[k]:v})),sub=(k,f,v)=>setS(o=>({...o,[k]:{...o[k],[f]:v}}));
+ const plan=s.raceDate?mkPlan(s.raceDate):[],cw=Math.max(0,plan.findIndex(w=>ad(w.st,6)>=new Date())),w=plan[wi??cw],wl=s.raceDate?Math.max(0,Math.ceil((pd(s.raceDate)-new Date())/6048e5)):null;
+ const tdi=(new Date().getDay()+6)%7,td=plan[cw]&&plan[cw].D[tdi];
+ const pw=+s.body.peso||0,tm=td?td.reduce((a,x,j)=>a+((lg[`${plan[cw].n}-${tdi}-${j}`]||{}).act?.min||x.m),0):0,cb=tm==0?[3,4]:tm<60?[4,5]:tm<150?[5,7]:[7,10],cm=(cb[0]+cb[1])/2*pw,lh=td?Math.max(0,...td.map(x=>x.m))/60:0,R=g=>Math.round(g/5)*5,oat=c=>R(Math.max(20,c)/.6),rice=c=>R(c/.28),pot=c=>R(c/.18);
+ const meals=pw?[["Pequeno-almoço",`${oat(cm*.25-42)} g de aveia, 1 banana, 200 g de iogurte grego e 1 c. sopa de mel`],...(tm>0?[["Pré-treino (1–2 h antes)","2 tostas com compota e 1 banana"]]:[]),...(tm>=60?[["Durante o treino",lh>=2.5?`${R(lh*60)}–${R(lh*90)} g de hidratos no total (60–90 g/h): bebida desportiva e géis; 500–750 mg de sódio por hora`:`${R(lh*30)}–${R(lh*60)} g de hidratos no total (30–60 g/h): bebida desportiva ou gel, água à sede`]]:[]),[tm>0?"Pós-treino (até 1 h depois)":"Lanche da manhã",tm>0?"Batido: 30 g de whey, 1 banana e 300 ml de leite":"Fruta e 30 g de frutos secos"],["Almoço",`${rice(cm*.25)} g de arroz cozido, 150 g de frango ou peixe, legumes à vontade e 1 c. sopa de azeite`],["Lanche","Iogurte com fruta e 30 g de frutos secos"],["Jantar",`${pot(cm*.2)} g de batata cozida (ou massa equivalente), 150 g de peixe ou ovos, salada e 1 c. sopa de azeite`]]:[];
+ const goal=pp(s.goal.swim)*38+180/(+s.goal.bike||1)*60+pp(s.goal.run)*42.195+6;
+ async function upd(){
+  setBusy(true);setEr({});
+  const mcp=window.claude?await claude.use("mcp"):null;
+  if(!mcp){setEr({all:"Esta página só liga ao Garmin quando aberta no claude.ai, com a tua sessão iniciada."});setBusy(false);return}
+  const t=new Date(),C=(tool,i)=>mcp.callTool("Garmin",tool,i).then(r=>({p:r.payload,at:r.cache?r.cache.storedAt:Date.now()}),e=>({e}));
+  const[a,sl,r1]=await Promise.all([C("get_activities",{limit:30}),C("get_sleep_summary_range",{start_date:iso(ad(t,-13)),end_date:iso(t)}),C("get_training_readiness",{date:iso(t)})]);
+  let r=r1;if(r.p&&Array.isArray(r.p)&&!r.p.length)r=await C("get_training_readiness",{date:iso(ad(t,-1))});
+  const E={},n={...gd,at:Date.now()};
+  if(a.e)E.a=em(a.e);else n.act=(a.p&&a.p.activities)||[];
+  if(sl.e)E.s=em(sl.e);else n.sleep=(sl.p&&sl.p.nights)||[];
+  if(r.e)E.r=em(r.e);else{const x=Array.isArray(r.p)?r.p.slice().sort((p,q)=>String(q.timestamp).localeCompare(String(p.timestamp))):[];n.rd=x[0]||null;n.rdAll=x}
+  const mm=n.act?mt(plan,n.act,lg):{o:lg,c:0};n.msg=mm.c?`${mm.c} treino(s) do plano marcado(s) como feito(s) com as tuas atividades`:"";setLg(mm.o);setG(n);setEr(E);setBusy(false)
+ }
+ const Btn=()=>h`<div><button className="bt w-full" disabled=${busy} onClick=${upd}>${busy?"A atualizar…":"Atualizar dados do Garmin"}</button>${gd.at&&h`<div className="mu text-xs mt-1 text-center">Última atualização: ${new Date(gd.at).toLocaleString("pt-PT")}</div>`}${gd.msg&&h`<div className="text-xs mt-1 text-center" style=${{color:"var(--ok)"}}>${gd.msg}</div>`}${er.all&&h`<div className="text-sm mt-2" style=${{color:"var(--no)"}}>${er.all}</div>`}</div>`;
+ const cellK=e=>{const el=document.elementFromPoint(e.clientX,e.clientY);return el&&el.dataset&&el.dataset.k};
+ const paint=(k,v)=>setS(o=>({...o,av:{...o.av,[k]:v}}));
+ const cp=i=>setS(o=>{const av={...o.av};for(let j=0;j<7;j++)HRS.forEach(x=>{av[`${j}-${x}`]=o.av[`${i}-${x}`]!==false});return{...o,av}});
+ const rd=gd.rd;
+ return h`<div className="max-w-md mx-auto px-4 pt-5">
+ <div className="mu text-xs uppercase tracking-widest">${s.raceName||"Ironman"}</div>
+ ${tab=="hoje"&&h`<div className="space-y-4 mt-2"><${Btn}/>
+  <div className="hero"><div className="text-xs opacity-80 uppercase tracking-widest">${s.raceName}</div><div className="text-5xl font-extrabold mt-1">${s.raceDate?wl:"—"}<span className="text-base font-medium"> semanas</span></div><div className="text-sm opacity-90">${w?`Fase ${w.p} · semana ${plan[cw].n} de ${plan.length}`:"Define a data da prova em Definições"}</div></div>
+  ${rd&&h`<div className="cd flex items-center gap-4"><${Ring} v=${rd.score}/><div><div className="font-medium">Prontidão: ${LV[rd.level]||rd.level}</div><div className="mu text-xs">Recuperação restante: ${Math.round(rd.recovery_time_hours)} h · HRV semanal ${rd.hrv_weekly_avg}</div></div></div>`}
+  <div><div className="text-sm font-medium mb-2">Hoje</div>${td?(()=>{const sl=slots(tdi,td,s.av);return td.map((x,i)=>h`<${Sess} key=${i} s=${x} t=${sl[i]} k=${`${plan[cw].n}-${tdi}-${i}`}/>`)})():h`<div className="mu text-sm">Sem plano ainda.</div>`}</div></div>`}
+ ${tab=="plano"&&h`<div className="space-y-2 mt-2">${w?h`<div className="flex items-center justify-between"><button className="p-2" onClick=${()=>setWi(Math.max(0,(wi??cw)-1))}>‹</button><div className="text-center"><div className="font-semibold">Semana ${w.n}</div><div className="mu text-xs">${w.st.toLocaleDateString("pt-PT",{day:"2-digit",month:"short"})} · ${w.p}${w.cut?" · recuperação":""}</div></div><button className="p-2" onClick=${()=>setWi(Math.min(plan.length-1,(wi??cw)+1))}>›</button></div>
+  ${w.D.map((d,i)=>{const sl=slots(i,d,s.av);return h`<div key=${i}><div className="mu text-[10px] uppercase mb-1">${DAYS[i]}</div>${d.map((x,j)=>h`<${Sess} key=${j} s=${x} t=${sl[j]} k=${`${w.n}-${i}-${j}`}/>`)}</div>`})}`:h`<div className="cd mu text-sm">Define a data da prova em Definições para gerar o plano.</div>`}</div>`}
+ ${tab=="saude"&&h`<div className="space-y-4 mt-2"><${Btn}/>
+  ${er.r&&h`<div className="text-sm" style=${{color:"var(--no)"}}>Prontidão: ${er.r}</div>`}
+  ${rd?h`<div className="cd flex items-center gap-4"><${Ring} v=${rd.score}/><div className="text-sm space-y-0.5"><div className="font-medium">Prontidão: ${LV[rd.level]||rd.level}</div><div className="mu">Sono ${rd.sleep_score??"–"} · HRV ${rd.hrv_factor_percent}% · Carga aguda ${rd.acute_load}</div><div className="mu">Recuperação restante ${Math.round(rd.recovery_time_hours)} h</div></div></div>`:h`<div className="cd mu text-sm">Carrega em atualizar para ver a prontidão.</div>`}
+  ${er.s&&h`<div className="text-sm" style=${{color:"var(--no)"}}>Sono: ${er.s}</div>`}
+  ${gd.sleep&&h`<div className="cd"><div className="text-sm font-medium mb-2">Sono (últimas noites)</div>${gd.sleep.length?gd.sleep.map(n=>h`<div key=${n.date} className="flex items-center gap-2 text-xs mb-1"><span className="w-12 mu">${n.date.slice(5)}</span><div className="flex-1 h-3 rounded" style=${{background:"var(--bd)"}}><div className="h-3 rounded" style=${{width:`${Math.min(100,n.sleep_hours/10*100)}%`,background:"var(--ac)"}}></div></div><span className="w-28 text-right">${n.sleep_hours.toFixed(1)} h · ${n.sleep_score??"–"} · HRV ${n.avg_overnight_hrv??"–"}</span></div>`):h`<div className="mu text-xs">Sem noites registadas.</div>`}<div className="mu text-[11px] mt-1">Noites sem dados do Garmin não aparecem.</div></div>`}
+  ${er.a&&h`<div className="text-sm" style=${{color:"var(--no)"}}>Atividades: ${er.a}</div>`}
+  ${gd.act&&h`<div className="cd"><div className="text-sm font-medium mb-2">Últimas atividades</div>${gd.act.slice(0,12).map(a=>h`<div key=${a.id} className="flex justify-between text-xs mb-1.5 gap-2"><span>${a.start_time.slice(5,10)} · ${typ(a.type)}</span><span className="mu text-right">${ln(a)}${a.avg_hr_bpm?` · ${Math.round(a.avg_hr_bpm)} bpm`:""}</span></div>`)}</div>`}</div>`}
+ ${tab=="comer"&&h`<div className="space-y-3 mt-2"><div className="hero"><div className="text-xs opacity-80 uppercase tracking-widest">Alimentação de hoje</div><div className="text-2xl font-extrabold mt-1">${tm==0?"Dia de descanso":tm<60?"Dia leve":tm<150?"Dia moderado":"Dia longo / chave"}</div><div className="text-sm opacity-90">${tm?`${fm(tm)} de treino`:"Sem treino planeado"}${rd?` · prontidão ${rd.score}`:""}</div></div>${pw?h`<${React.Fragment}><div className="grid grid-cols-3 gap-2 text-center">${[["Hidratos",`${R(cb[0]*pw)}–${R(cb[1]*pw)} g`,`${cb[0]}–${cb[1]} g/kg`],["Proteína",`${R(1.6*pw)}–${R(1.8*pw)} g`,"1,6–1,8 g/kg"],["Gordura",`${R(pw)} g`,"≈1 g/kg"]].map(([a,b,c])=>h`<div key=${a} className="cd"><div className="font-bold">${b}</div><div className="mu text-[10px]">${a} · ${c}</div></div>`)}</div>${rd&&rd.score<60&&h`<div className="cd text-sm">A prontidão está baixa: reforça a proteína e a hidratação e come bem ao jantar.</div>`}${meals.map(([a,b])=>h`<div key=${a} className="cd"><div className="text-xs font-semibold uppercase mu">${a}</div><div className="text-sm mt-1">${b}</div></div>`)}<//>`:h`<div className="cd mu text-sm">Define o teu peso em Definições › Corpo para calcular o plano.</div>`}<div className="mu text-[11px]">Referência geral baseada no treino de hoje e no teu peso. Ajusta a alergias e preferências; não substitui um nutricionista.</div></div>`}
+ ${tab=="def"&&h`<div className="mt-2">
+  <${Sec} id="p" t="Prova e data" open=${op} set=${setOp}>
+   <${Fld} l="Título da prova" v=${s.raceName} on=${v=>up("raceName",v)}/><${Fld} l="Data da prova" t="date" v=${s.raceDate} on=${v=>up("raceDate",v)}/>
+   ${["swim","bike","run"].map(k=>h`<div key=${k} className="text-xs"><div className="mu mb-1">Percurso — ${NM[k]} (GPX)</div><input type="file" accept=".gpx" onChange=${async e=>{const f=e.target.files[0];if(f)sub("gpx",k,{nome:f.name,...gpx(await f.text())})}}/>${s.gpx[k]&&h`<div className="mu mt-1">${s.gpx[k].nome}: ${s.gpx[k].km} km${s.gpx[k].gain!=null?` · +${s.gpx[k].gain} m`:" · sem altitude no ficheiro"}</div>`}</div>`)}
+  <//>
+  <${Sec} id="d" t="Disponibilidades" open=${op} set=${setOp}>
+   <div className="mu text-xs">Toca ou arrasta para alternar. Verde = disponível, vermelho = indisponível. O botão ⎘ copia o dia para todos.</div>
+   <div className="grid gap-1 select-none" style=${{gridTemplateColumns:"30px repeat(7,1fr)",touchAction:"none"}} onPointerDown=${e=>{const k=cellK(e);if(!k)return;const v=!(s.av[k]!==false);dr.current=v;paint(k,v)}} onPointerMove=${e=>{if(dr.current===null)return;const k=cellK(e);if(k)paint(k,dr.current)}} onPointerUp=${()=>dr.current=null} onPointerLeave=${()=>dr.current=null}>
+    <div></div>${DAYS.map((d,i)=>h`<button key=${d} className="text-[11px]" onPointerDown=${e=>e.stopPropagation()} onClick=${()=>cp(i)}>${d} ⎘</button>`)}
+    ${HRS.map(x=>h`<${React.Fragment} key=${x}><div className="mu text-[10px] text-right pr-1">${x}h</div>${DAYS.map((d,i)=>h`<div key=${i} className="cell" data-k=${`${i}-${x}`} style=${{background:s.av[`${i}-${x}`]===false?"var(--no)":"var(--ok)"}}></div>`)}<//>`)}
+   </div>
+  <//>
+  <${Sec} id="o" t="Objetivo" open=${op} set=${setOp}>
+   <${Fld} l="Natação — ritmo por 100 m (m:ss)" v=${s.goal.swim} on=${v=>sub("goal","swim",v)}/><${Fld} l="Bike — velocidade (km/h)" t="number" v=${s.goal.bike} on=${v=>sub("goal","bike",v)}/><${Fld} l="Corrida — ritmo por km (m:ss)" v=${s.goal.run} on=${v=>sub("goal","run",v)}/>
+   <div className="cd text-sm"><div className="text-2xl font-mono font-bold">${fm(goal)}</div><div className="mu text-xs">Natação ${fm(pp(s.goal.swim)*38)} · Bike ${fm(180/(+s.goal.bike||1)*60)} · Corrida ${fm(pp(s.goal.run)*42.195)} · T1 e T2: 3 min cada</div></div>
+  <//>
+  <${Sec} id="c" t="Corpo" open=${op} set=${setOp}>
+   ${[["peso","Peso (kg)"],["altura","Altura (cm)"],["idade","Idade"],["fcmax","FC máxima (bpm)"],["gordura","Massa gorda (%)"],["ftp","FTP na bike (W)"]].map(([k,l])=>h`<${Fld} key=${k} l=${l} t="number" v=${s.body[k]} on=${v=>sub("body",k,v)}/>`)}
+   <div className="mu text-xs">Do Garmin: HRV semanal ${rd?rd.hrv_weekly_avg:"–"} · HRV da última noite ${gd.sleep&&gd.sleep.length?gd.sleep[gd.sleep.length-1].avg_overnight_hrv:"–"}. FC em repouso, VO2 máx. e ritmos de limiar ligam-se na fase seguinte.</div>
+  <//>
+  <${Sec} id="t" t="Avaliações técnicas" open=${op} set=${setOp}>
+   ${Object.keys(SK).map(d=>h`<div key=${d}><div className="text-sm font-medium mb-1">${NM[d]}</div>${SK[d].map(l=>h`<div key=${l} className="flex items-center justify-between mb-1"><span className="text-xs mu flex-1">${l}</span><div className="flex gap-1">${[1,2,3,4,5].map(v=>h`<button key=${v} className="w-7 h-7 rounded-full text-xs border" style=${{borderColor:"var(--bd)",background:(s.sk[d+l]??3)==v?"var(--ac)":"transparent",color:(s.sk[d+l]??3)==v?"#0c0a09":"var(--mu)"}} onClick=${()=>sub("sk",d+l,v)}>${v}</button>`)}</div></div>`)}</div>`)}
+   <div className="mu text-[11px]">1 = ponto fraco · 5 = ponto forte.</div>
+  <//></div>`}
+ ${sel&&h`<${Det} q=${sel} fc=${+s.body.fcmax||0} goal=${s.goal} lg=${lg} setLg=${setLg} close=${()=>setSel(null)}/>`}<nav>${[["hoje","🏠","Hoje"],["plano","📅","Plano"],["saude","❤️","Saúde"],["comer","🍽️","Comida"],["def","⚙️","Definições"]].map(([k,i,l])=>h`<button key=${k} onClick=${()=>setTab(k)} style=${{color:tab==k?"var(--ac)":"var(--mu)"}}><div className="text-lg">${i}</div><div>${l}</div></button>`)}</nav></div>`
+}
+ReactDOM.createRoot(document.getElementById("root")).render(h`<${App}/>`);
+</script></body></html>
